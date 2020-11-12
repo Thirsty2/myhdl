@@ -1,0 +1,24 @@
+ARG IMAGE="iverilog-ubuntu-vpi"
+# Note that some commands such as 'apk add' won't work in arbitrary images.  For instance,
+# 'apt-get' works fine under ubuntu, but not under alpine (at least not by default.)
+# In other words, the following 'apt-get' sections assume a debian based image or a derivitive
+
+FROM $IMAGE 
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get -y update && \
+    apt-get install -y \
+    python3 \
+    python3-pip \
+    wget && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN wget https://github.com/myhdl/myhdl/archive/0.11.tar.gz && tar xzvf 0.11.tar.gz && rm 0.11.tar.gz && \
+    cd myhdl-0.11/cosimulation/icarus && make && \
+    pip3 install pytest-xdist -e /myhdl-0.11
+RUN ln -s /myhdl/cosimulation/icarus/myhdl.vpi /usr/local/lib/ivl/myhdl.vpi
+ 
+
+# There is intentionally no entrypoint and no user in this image.  This makes it easier to
+# use this as the parent image to customize a new image with an entrypoint or user for a particular use case. 
