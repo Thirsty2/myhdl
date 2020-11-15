@@ -1,0 +1,70 @@
+ARG IMAGE="python:3-slim-buster"
+# Note that some commands such as 'apk add' won't work in arbitrary images.  For instance,
+# 'apt-get' works fine under ubuntu, but not under alpine (at least not by default.)
+# In other words, the following 'apt-get' sections assume a debian based image or a derivitive
+#
+FROM $IMAGE AS base
+#
+# Place anything that is common to both the build and execution environment in base 
+#
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get -y update && \
+    apt-get install -y \
+    make && \
+    rm -rf /var/lib/apt/lists/*
+
+FROM base as builder
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get -y update && \
+    apt-get install -y \
+        autoconf \
+        automake \
+        bison \
+        build-essential \
+        flex \
+        git \
+        gperf \
+        wget
+
+WORKDIR /work
+
+#download sources
+RUN git clone --branch v10-branch https://github.com/steveicarus/iverilog.git
+RUN wget https://github.com/myhdl/myhdl/archive/0.11.tar.gz && tar xzvf 0.11.tar.gz && rm 0.11.tar.gz
+
+RUN  pip3 install pytest-xdist -e /work/myhdl-0.11
+
+#build icarus
+RUN cd iverilog && sh autoconf.sh && ./configure && make -j4 && make install DESTDIR=/work/install
+
+#install for myhdl build
+RUN cd iverilog && make install
+
+#build myhdl cosim
+RUN cd myhdl-0.11/cosimulation/icarus && make
+
+FROM base
+
+# RUN apt-get -y update && \
+#    apt-get install -y \
+#    wget && \
+#    rm -rf /var/lib/apt/lists/*
+
+
+COPY --from=builder /work/install .
+COPY --from=builder /work/myhdl-0.11 /myhdl
+#COPY --from=builder /work/myhdl-0.11/cosimulation/icarus/myhdl.vpi /usr/local/lib/ivl/myhdl.vpi
+
+RUN  pip3 install pytest-xdist -e /myhdl
+RUN ln -s /myhdl/cosimulation/icarus/myhdl.vpi /usr/local/lib/ivl/myhdl.vpi
+
+# RUN adduser --disabled-password user
+# USER user
+# WORKDIR /home/user
+
+# There is intentionally no entrypoint and no user in this image.  This makes it easier to
+# use this as the parent image to customize a new image with an entrypoint or user for a particular use case. 
