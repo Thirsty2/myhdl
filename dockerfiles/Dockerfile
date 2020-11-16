@@ -1,4 +1,24 @@
-FROM alpine:3.12 as builder
+ARG IMAGE="alpine:3.12"
+# Note that some commands such as 'apk add' won't work in arbitrary images.  For instance,
+# 'apk add' works fine under alpine, but not under ubuntu (at least not by default.)
+# In other words, the following 'apk add' sections assume an alpine based image or a derivitive
+#
+FROM $IMAGE AS base
+#
+# Place anything that is common to both the build and execution environment in base 
+#
+RUN apk add --no-cache \
+        python3 \
+        py3-pip \
+        zlib \
+        bzip2 \
+        readline \
+        libgcc \
+        libstdc++ \
+        libhistory \
+        make
+	
+FROM base as builder
 
 RUN apk add --no-cache \
 	autoconf \
@@ -14,37 +34,23 @@ RUN apk add --no-cache \
 WORKDIR /work
 
 #download sources
-RUN git clone --branch v10-branch https://github.com/steveicarus/iverilog.git
+RUN git clone --branch v11-branch https://github.com/steveicarus/iverilog.git
 RUN wget https://github.com/myhdl/myhdl/archive/0.11.tar.gz && tar xzvf 0.11.tar.gz && rm 0.11.tar.gz
 
 #build icarus
-RUN cd iverilog && sh autoconf.sh && ./configure && make -j4 && make install DESTDIR=/work/install
-
-#install for myhdl build
-RUN cd iverilog && make install
+RUN cd iverilog && sh autoconf.sh && ./configure && make -j4 && make install
 
 #build myhdl cosim
 RUN cd myhdl-0.11/cosimulation/icarus && make
 
-FROM alpine:3.12
 
-RUN apk add --no-cache \
-        python3 \
-        py3-pip \
-        zlib \
-        bzip2 \
-        readline \
-        libgcc \
-        libstdc++ \
-        libhistory \
-        make
+FROM base as release-candidate
 
-COPY --from=builder /work/install .
+COPY --from=builder /usr/local /usr/local/
 COPY --from=builder /work/myhdl-0.11 /myhdl
-RUN pip3 install -e /myhdl
-RUN ln -s /myhdl/cosimulation/icarus/myhdl.vpi /usr/local/lib/ivl/myhdl.vpi
-RUN pip3 install pytest-xdist
+COPY --from=builder /work/myhdl-0.11/cosimulation/icarus/myhdl.vpi /usr/local/lib/ivl/myhdl.vpi
 
-RUN adduser --disabled-password user
-USER user
-WORKDIR /home/user
+RUN  pip3 install pytest-xdist -e /myhdl
+#
+# There is intentionally no entrypoint and no user in this image.  This makes it easier to
+# use this as the parent image to customize a new image with an entrypoint or user for a particular use case. 

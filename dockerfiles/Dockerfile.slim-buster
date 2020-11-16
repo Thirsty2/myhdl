@@ -33,7 +33,7 @@ RUN apt-get -y update && \
 WORKDIR /work
 
 #download sources
-RUN git clone --branch v10-branch https://github.com/steveicarus/iverilog.git
+RUN git clone --branch v11-branch https://github.com/steveicarus/iverilog.git
 RUN wget https://github.com/myhdl/myhdl/archive/0.11.tar.gz && tar xzvf 0.11.tar.gz && rm 0.11.tar.gz
 
 #build icarus
