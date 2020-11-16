@@ -36,35 +36,20 @@ WORKDIR /work
 RUN git clone --branch v10-branch https://github.com/steveicarus/iverilog.git
 RUN wget https://github.com/myhdl/myhdl/archive/0.11.tar.gz && tar xzvf 0.11.tar.gz && rm 0.11.tar.gz
 
-RUN  pip3 install pytest-xdist -e /work/myhdl-0.11
-
 #build icarus
-RUN cd iverilog && sh autoconf.sh && ./configure && make -j4 && make install DESTDIR=/work/install
-
-#install for myhdl build
-RUN cd iverilog && make install
+RUN cd iverilog && sh autoconf.sh && ./configure && make -j4 && make install
 
 #build myhdl cosim
 RUN cd myhdl-0.11/cosimulation/icarus && make
 
-FROM base
 
-# RUN apt-get -y update && \
-#    apt-get install -y \
-#    wget && \
-#    rm -rf /var/lib/apt/lists/*
+FROM base as release-candidate
 
-
-COPY --from=builder /work/install .
+COPY --from=builder /usr/local /usr/local/
 COPY --from=builder /work/myhdl-0.11 /myhdl
-#COPY --from=builder /work/myhdl-0.11/cosimulation/icarus/myhdl.vpi /usr/local/lib/ivl/myhdl.vpi
+COPY --from=builder /work/myhdl-0.11/cosimulation/icarus/myhdl.vpi /usr/local/lib/ivl/myhdl.vpi
 
 RUN  pip3 install pytest-xdist -e /myhdl
-RUN ln -s /myhdl/cosimulation/icarus/myhdl.vpi /usr/local/lib/ivl/myhdl.vpi
-
-# RUN adduser --disabled-password user
-# USER user
-# WORKDIR /home/user
-
+#
 # There is intentionally no entrypoint and no user in this image.  This makes it easier to
 # use this as the parent image to customize a new image with an entrypoint or user for a particular use case. 
